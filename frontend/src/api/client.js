@@ -1,12 +1,17 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+const normalizedApiBaseUrl = API_BASE_URL?.replace(/\/$/, "");
 const REQUEST_TIMEOUT_MS = 30000;
 
 async function request(path, options = {}) {
+  if (!normalizedApiBaseUrl) {
+    throw new Error("VITE_API_BASE_URL is not configured.");
+  }
+
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
   try {
-    const response = await fetch(`${API_BASE_URL}${path}`, {
+    const response = await fetch(`${normalizedApiBaseUrl}${path}`, {
       headers: {
         "Content-Type": "application/json",
         ...(options.headers || {}),
