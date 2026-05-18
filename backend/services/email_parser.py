@@ -62,7 +62,7 @@ def parse_email_thread(raw_thread: str) -> list[dict]:
     for position, email in enumerate(parsed, start=1):
         body = email["body"]
         timestamp = format_timestamp(email["_sortTimestamp"], email["date"])
-        email_type = _email_type(email["senderType"])
+        email_type = _email_type(position)
         output.append(
             {
                 "id": position,
@@ -106,7 +106,7 @@ def _split_thread(text: str) -> list[str]:
 
 def _parse_chunk(chunk: str, index: int) -> dict:
     headers = _extract_headers(chunk)
-    timestamp_text = headers.get("date") or headers.get("sent") or find_datetime_text(chunk)
+    timestamp_text = headers.get("sent") or headers.get("date") or find_datetime_text(chunk)
     timestamp = parse_datetime(timestamp_text)
     body = _clean_email_body(strip_email_headers(_remove_label_prefix(chunk)))
     from_field = headers.get("from", "")
@@ -128,10 +128,15 @@ def _parse_chunk(chunk: str, index: int) -> dict:
 
 def _extract_headers(chunk: str) -> dict[str, str]:
     headers: dict[str, str] = {}
-    for label in ("from", "to", "sent", "date", "subject"):
-        match = re.search(rf"(?im)^\s*{label}\s*:\s*(.+)$", chunk)
+    for line in chunk.splitlines():
+        if not line.strip():
+            if headers:
+                break
+            continue
+
+        match = re.match(r"(?i)^\s*(from|to|sent|date|subject)\s*:\s*(.+)$", line)
         if match:
-            headers[label] = match.group(1).strip()
+            headers[match.group(1).lower()] = match.group(2).strip()
     return headers
 
 
@@ -194,5 +199,5 @@ def _clean_email_body(body: str) -> str:
     return clean_text("\n".join(lines))
 
 
-def _email_type(sender_type: str) -> str:
-    return _sender_label(sender_type)
+def _email_type(position: int) -> str:
+    return "Initial Email" if position == 1 else "Follow-up Email"

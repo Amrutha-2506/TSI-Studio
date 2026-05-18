@@ -232,20 +232,24 @@ export default function WorkspacePage() {
   }
 
   function applySession(session) {
+    const normalizedEmails = normalizeEmailHistory(session.emails || []);
     const category = normalizeCategory(
       session.selectedCategory || session.detectedCategory || "General Inquiry"
     );
     const nextPrompt = session.prompt || promptTemplates[category];
 
     setSessionId(session.sessionId);
-    setEmails(session.emails || []);
+    setEmails(normalizedEmails);
     setDetectedCategory(session.detectedCategory || "");
     setSelectedCategory(category);
     setPromptText(nextPrompt);
     setReply(session.generatedReply || "");
     setExpandedEmails(new Set());
     sessionStorage.setItem("tsiStudioSessionId", session.sessionId);
-    sessionStorage.setItem("tsiStudioSession", JSON.stringify(session));
+    sessionStorage.setItem(
+      "tsiStudioSession",
+      JSON.stringify({ ...session, emails: normalizedEmails })
+    );
   }
 
   function updateCachedSession(changes) {
@@ -268,6 +272,136 @@ export default function WorkspacePage() {
 
   function normalizeCategory(category) {
     return categories.includes(category) ? category : "General Inquiry";
+  }
+
+  function normalizeEmailHistory(emailHistory = []) {
+    const datedEmails = emailHistory.map((email, index) => ({
+      email,
+      index,
+      timestamp: parseEmailDate(email.timestamp || email.date),
+    }));
+    const hasParsedDates = datedEmails.some((item) => item.timestamp !== null);
+    const orderedEmails = hasParsedDates
+      ? datedEmails
+          .sort((first, second) => {
+            if (first.timestamp !== null && second.timestamp !== null) {
+              return first.timestamp - second.timestamp;
+            }
+            if (first.timestamp !== null) return -1;
+            if (second.timestamp !== null) return 1;
+            return first.index - second.index;
+          })
+          .map((item) => item.email)
+      : [...emailHistory].reverse();
+
+    return orderedEmails.map((email, index) => {
+      const position = index + 1;
+      return {
+        ...email,
+        id: position,
+        position,
+        type: position === 1 ? "Initial Email" : "Follow-up Email",
+      };
+    });
+  }
+
+  function parseEmailDate(value = "") {
+    const normalized = String(value)
+      .replace(/^\s*(?:mon(?:day)?|tue(?:sday)?|wed(?:nesday)?|thu(?:rsday)?|fri(?:day)?|sat(?:urday)?|sun(?:day)?),\s*/i, "")
+      .replace(/\s+at\s+/i, " ")
+      .replace(/\s+(?:ET|EST|EDT|CT|CST|CDT|PT|PST|PDT)\b/i, "")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    const explicitTimestamp = parseKnownEmailDate(normalized);
+    if (explicitTimestamp !== null) return explicitTimestamp;
+
+    const fallbackTimestamp = Date.parse(normalized);
+    return Number.isNaN(fallbackTimestamp) ? null : fallbackTimestamp;
+  }
+
+  function parseKnownEmailDate(value) {
+    const monthNames = {
+      jan: 0,
+      january: 0,
+      feb: 1,
+      february: 1,
+      mar: 2,
+      march: 2,
+      apr: 3,
+      april: 3,
+      may: 4,
+      jun: 5,
+      june: 5,
+      jul: 6,
+      july: 6,
+      aug: 7,
+      august: 7,
+      sep: 8,
+      september: 8,
+      oct: 9,
+      october: 9,
+      nov: 10,
+      november: 10,
+      dec: 11,
+      december: 11,
+    };
+
+    const monthFirst = value.match(
+      /^([A-Za-z]{3,9})\s+(\d{1,2}),?\s+(\d{4}),?\s+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)$/i
+    );
+    if (monthFirst) {
+      return buildTimestamp({
+        month: monthNames[monthFirst[1].toLowerCase()],
+        day: monthFirst[2],
+        year: monthFirst[3],
+        hour: monthFirst[4],
+        minute: monthFirst[5],
+        second: monthFirst[6],
+        meridiem: monthFirst[7],
+      });
+    }
+
+    const dayFirst = value.match(
+      /^(\d{1,2})\s+([A-Za-z]{3,9})\s+(\d{4}),?\s+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)$/i
+    );
+    if (dayFirst) {
+      return buildTimestamp({
+        day: dayFirst[1],
+        month: monthNames[dayFirst[2].toLowerCase()],
+        year: dayFirst[3],
+        hour: dayFirst[4],
+        minute: dayFirst[5],
+        second: dayFirst[6],
+        meridiem: dayFirst[7],
+      });
+    }
+
+    const numeric = value.match(
+      /^(\d{1,2})\/(\d{1,2})\/(\d{2,4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)$/i
+    );
+    if (numeric) {
+      const year = Number(numeric[3]) < 100 ? Number(numeric[3]) + 2000 : Number(numeric[3]);
+      return buildTimestamp({
+        month: Number(numeric[1]) - 1,
+        day: numeric[2],
+        year,
+        hour: numeric[4],
+        minute: numeric[5],
+        second: numeric[6],
+        meridiem: numeric[7],
+      });
+    }
+
+    return null;
+  }
+
+  function buildTimestamp({ year, month, day, hour, minute, second = 0, meridiem }) {
+    if (month === undefined) return null;
+    let hourValue = Number(hour);
+    if (meridiem.toUpperCase() === "PM" && hourValue !== 12) hourValue += 12;
+    if (meridiem.toUpperCase() === "AM" && hourValue === 12) hourValue = 0;
+    return new Date(Number(year), month, Number(day), hourValue, Number(minute), Number(second || 0)).getTime();
   }
 
   function handleCategoryChange(event) {
@@ -334,13 +468,17 @@ export default function WorkspacePage() {
     }
 
     const localSession = mergeLocalEmail(JSON.parse(cached), emailContent);
-    setEmails(localSession.emails);
+    const normalizedEmails = normalizeEmailHistory(localSession.emails);
+    setEmails(normalizedEmails);
     setDetectedCategory(localSession.detectedCategory || detectedCategory);
     setSelectedCategory(normalizeCategory(localSession.selectedCategory || localSession.detectedCategory));
-    sessionStorage.setItem("tsiStudioSession", JSON.stringify(localSession));
+    sessionStorage.setItem(
+      "tsiStudioSession",
+      JSON.stringify({ ...localSession, emails: normalizedEmails })
+    );
     setNewEmailContent("");
     setIsAddEmailOpen(false);
-    return localSession;
+    return { ...localSession, emails: normalizedEmails };
   }
 
   async function handleAddEmailSubmit(event) {
@@ -361,12 +499,13 @@ export default function WorkspacePage() {
       }
 
       const updated = await addEmail(sessionId, emailContent);
+      const normalizedEmails = normalizeEmailHistory(updated.emails);
       const category = normalizeCategory(updated.selectedCategory || updated.detectedCategory || selectedCategory);
-      setEmails(updated.emails);
+      setEmails(normalizedEmails);
       setDetectedCategory(updated.detectedCategory || detectedCategory);
       setSelectedCategory(category);
       updateCachedSession({
-        emails: updated.emails,
+        emails: normalizedEmails,
         detectedCategory: updated.detectedCategory,
         selectedCategory: category,
       });

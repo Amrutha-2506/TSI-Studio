@@ -87,18 +87,14 @@ export function parseLocalEmailThread(rawThread) {
     .map((chunk, index) => parseChunk(chunk, index))
     .filter((email) => email.body.length > 0);
 
-  const emails = parsed.length ? parsed : [parseChunk(text, 0)];
-  const lastCustomerIndex = emails
-    .map((email, index) => (email.senderType === "Customer" ? index : -1))
-    .filter((index) => index >= 0)
-    .pop();
+  const emails = sortLocalEmails(parsed.length ? parsed : [parseChunk(text, 0)]);
 
   return emails.map((email, index) => {
     const position = index + 1;
     return {
       id: position,
       position,
-      type: emailType(position, email.senderType, lastCustomerIndex === index),
+      type: emailType(position),
       sender: senderLabel(email.senderType),
       senderType: email.senderType,
       from: email.from || email.fromName || senderLabel(email.senderType),
@@ -242,12 +238,135 @@ function makePreview(body) {
   return compact.length > 92 ? `${compact.slice(0, 89).trim()}...` : compact;
 }
 
-function emailType(position, senderType, isLatestCustomer) {
-  return senderLabel(senderType);
+function emailType(position) {
+  return position === 1 ? "Initial Email" : "Follow-up Email";
 }
 
 function senderLabel(senderType) {
   return senderType === "GNG" ? "From GNG" : "From Customer";
+}
+
+function sortLocalEmails(emails) {
+  const datedEmails = emails.map((email, index) => ({
+    email,
+    index,
+    timestamp: parseEmailDate(email.date),
+  }));
+  const hasParsedDates = datedEmails.some((item) => item.timestamp !== null);
+
+  if (!hasParsedDates && emails.length > 1) {
+    return [...emails].reverse();
+  }
+
+  return datedEmails
+    .sort((first, second) => {
+      if (first.timestamp !== null && second.timestamp !== null) {
+        return first.timestamp - second.timestamp;
+      }
+      if (first.timestamp !== null) return -1;
+      if (second.timestamp !== null) return 1;
+      return first.index - second.index;
+    })
+    .map((item) => item.email);
+}
+
+function parseEmailDate(value = "") {
+  const normalized = value
+    .replace(/^\s*(?:mon(?:day)?|tue(?:sday)?|wed(?:nesday)?|thu(?:rsday)?|fri(?:day)?|sat(?:urday)?|sun(?:day)?),\s*/i, "")
+    .replace(/\s+at\s+/i, " ")
+    .replace(/\s+(?:ET|EST|EDT|CT|CST|CDT|PT|PST|PDT)\b/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const explicitTimestamp = parseKnownEmailDate(normalized);
+  if (explicitTimestamp !== null) return explicitTimestamp;
+
+  const fallbackTimestamp = Date.parse(normalized);
+  return Number.isNaN(fallbackTimestamp) ? null : fallbackTimestamp;
+}
+
+function parseKnownEmailDate(value) {
+  const monthNames = {
+    jan: 0,
+    january: 0,
+    feb: 1,
+    february: 1,
+    mar: 2,
+    march: 2,
+    apr: 3,
+    april: 3,
+    may: 4,
+    jun: 5,
+    june: 5,
+    jul: 6,
+    july: 6,
+    aug: 7,
+    august: 7,
+    sep: 8,
+    september: 8,
+    oct: 9,
+    october: 9,
+    nov: 10,
+    november: 10,
+    dec: 11,
+    december: 11,
+  };
+
+  const monthFirst = value.match(
+    /^([A-Za-z]{3,9})\s+(\d{1,2}),?\s+(\d{4}),?\s+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)$/i
+  );
+  if (monthFirst) {
+    return buildTimestamp({
+      month: monthNames[monthFirst[1].toLowerCase()],
+      day: monthFirst[2],
+      year: monthFirst[3],
+      hour: monthFirst[4],
+      minute: monthFirst[5],
+      second: monthFirst[6],
+      meridiem: monthFirst[7],
+    });
+  }
+
+  const dayFirst = value.match(
+    /^(\d{1,2})\s+([A-Za-z]{3,9})\s+(\d{4}),?\s+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)$/i
+  );
+  if (dayFirst) {
+    return buildTimestamp({
+      day: dayFirst[1],
+      month: monthNames[dayFirst[2].toLowerCase()],
+      year: dayFirst[3],
+      hour: dayFirst[4],
+      minute: dayFirst[5],
+      second: dayFirst[6],
+      meridiem: dayFirst[7],
+    });
+  }
+
+  const numeric = value.match(
+    /^(\d{1,2})\/(\d{1,2})\/(\d{2,4})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*(AM|PM)$/i
+  );
+  if (numeric) {
+    const year = Number(numeric[3]) < 100 ? Number(numeric[3]) + 2000 : Number(numeric[3]);
+    return buildTimestamp({
+      month: Number(numeric[1]) - 1,
+      day: numeric[2],
+      year,
+      hour: numeric[4],
+      minute: numeric[5],
+      second: numeric[6],
+      meridiem: numeric[7],
+    });
+  }
+
+  return null;
+}
+
+function buildTimestamp({ year, month, day, hour, minute, second = 0, meridiem }) {
+  if (month === undefined) return null;
+  let hourValue = Number(hour);
+  if (meridiem.toUpperCase() === "PM" && hourValue !== 12) hourValue += 12;
+  if (meridiem.toUpperCase() === "AM" && hourValue === 12) hourValue = 0;
+  return new Date(Number(year), month, Number(day), hourValue, Number(minute), Number(second || 0)).getTime();
 }
 
 function bestCategory(text, allowVerification) {
