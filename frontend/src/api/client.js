@@ -1,5 +1,5 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
-const normalizedApiBaseUrl = API_BASE_URL?.replace(/\/$/, "");
+const normalizedApiBaseUrl = API_BASE_URL?.replace(/\/+$/, "");
 const REQUEST_TIMEOUT_MS = 30000;
 
 async function request(path, options = {}) {
@@ -48,6 +48,14 @@ function formatErrorDetail(detail) {
   return detail.message || "Request failed. Please try again.";
 }
 
+function withBackendSession(sessionId, payload = {}) {
+  if (!sessionId || sessionId.startsWith("local-")) {
+    return payload;
+  }
+
+  return { sessionId, ...payload };
+}
+
 export function parseEmailThread(emailThread) {
   return request("/api/email/parse", {
     method: "POST",
@@ -69,8 +77,8 @@ export function getSession(sessionId) {
 export function generateReply(sessionId, prompt) {
   const payload =
     typeof prompt === "object"
-      ? { sessionId, ...prompt }
-      : { sessionId, agentInstructions: prompt };
+      ? withBackendSession(sessionId, prompt)
+      : withBackendSession(sessionId, { agentInstructions: prompt });
 
   return request("/api/reply/generate", {
     method: "POST",
@@ -81,7 +89,7 @@ export function generateReply(sessionId, prompt) {
 export function regenerateReply(sessionId, options = {}) {
   return request("/api/reply/regenerate", {
     method: "POST",
-    body: JSON.stringify({ sessionId, ...options }),
+    body: JSON.stringify(withBackendSession(sessionId, options)),
   });
 }
 

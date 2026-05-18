@@ -200,13 +200,25 @@ export default function WorkspacePage() {
     setIsLoading(true);
     showStatus("");
     try {
+      if (id.startsWith("local-")) {
+        const cached = sessionStorage.getItem("tsiStudioSession");
+        if (!cached) {
+          throw new Error("Local session not found.");
+        }
+        applySession(JSON.parse(cached));
+        return;
+      }
+
       const session = await getSession(id);
       applySession(session);
     } catch (error) {
       const cached = sessionStorage.getItem("tsiStudioSession");
-      if (cached) {
+      try {
+        if (!cached) {
+          throw error;
+        }
         applySession(JSON.parse(cached));
-      } else {
+      } catch {
         showStatus(error.message || "Unable to load session.", "error");
       }
     } finally {
@@ -315,6 +327,22 @@ export default function WorkspacePage() {
     showStatus("Prompt updated.");
   }
 
+  function applyLocalEmailUpdate(emailContent) {
+    const cached = sessionStorage.getItem("tsiStudioSession");
+    if (!cached) {
+      throw new Error("No local session available.");
+    }
+
+    const localSession = mergeLocalEmail(JSON.parse(cached), emailContent);
+    setEmails(localSession.emails);
+    setDetectedCategory(localSession.detectedCategory || detectedCategory);
+    setSelectedCategory(normalizeCategory(localSession.selectedCategory || localSession.detectedCategory));
+    sessionStorage.setItem("tsiStudioSession", JSON.stringify(localSession));
+    setNewEmailContent("");
+    setIsAddEmailOpen(false);
+    return localSession;
+  }
+
   async function handleAddEmailSubmit(event) {
     event.preventDefault();
     const emailContent = newEmailContent.trim();
@@ -326,6 +354,12 @@ export default function WorkspacePage() {
     setIsAddingEmail(true);
     showStatus("Adding email...");
     try {
+      if (sessionId.startsWith("local-")) {
+        applyLocalEmailUpdate(emailContent);
+        showStatus("Email history updated locally.");
+        return;
+      }
+
       const updated = await addEmail(sessionId, emailContent);
       const category = normalizeCategory(updated.selectedCategory || updated.detectedCategory || selectedCategory);
       setEmails(updated.emails);
@@ -340,18 +374,11 @@ export default function WorkspacePage() {
       setIsAddEmailOpen(false);
       showStatus("Email history updated.");
     } catch (error) {
-      const cached = sessionStorage.getItem("tsiStudioSession");
-      if (!cached) {
-        showStatus(error.message || "Unable to add email.", "error");
-      } else {
-        const localSession = mergeLocalEmail(JSON.parse(cached), emailContent);
-        setEmails(localSession.emails);
-        setDetectedCategory(localSession.detectedCategory || detectedCategory);
-        setSelectedCategory(normalizeCategory(localSession.selectedCategory || localSession.detectedCategory));
-        sessionStorage.setItem("tsiStudioSession", JSON.stringify(localSession));
-        setNewEmailContent("");
-        setIsAddEmailOpen(false);
+      try {
+        applyLocalEmailUpdate(emailContent);
         showStatus("Email history updated locally.");
+      } catch {
+        showStatus(error.message || "Unable to add email.", "error");
       }
     } finally {
       setIsAddingEmail(false);
@@ -360,6 +387,7 @@ export default function WorkspacePage() {
 
   async function handleGenerate() {
     if (!sessionId) return;
+    const isLocalSession = sessionId.startsWith("local-");
     setIsGenerating(true);
     setGenerationAction("generate");
     showStatus("Generating reply...");
@@ -368,6 +396,7 @@ export default function WorkspacePage() {
         selectedCategory,
         agentInstructions: promptText,
         accountData: {},
+        ...(isLocalSession ? { emails } : {}),
       });
       setReply(result.reply);
       setIsEditing(false);
@@ -387,6 +416,7 @@ export default function WorkspacePage() {
 
   async function handleRegenerate() {
     if (!sessionId) return;
+    const isLocalSession = sessionId.startsWith("local-");
     setIsGenerating(true);
     setGenerationAction("regenerate");
     showStatus("Regenerating reply...");
@@ -395,6 +425,7 @@ export default function WorkspacePage() {
         selectedCategory,
         agentInstructions: promptText,
         previousReply: reply,
+        ...(isLocalSession ? { emails } : {}),
       });
       setReply(result.reply);
       setIsEditing(false);

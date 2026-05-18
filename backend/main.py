@@ -28,6 +28,19 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(title="TSI Studio API", version="1.0.0")
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "https://tsi-studio.vercel.app",
+    ],
+    allow_origin_regex=r"https://.*\.vercel\.app",
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 @app.on_event("startup")
 def log_startup():
@@ -59,19 +72,6 @@ async def log_requests(request: Request, call_next):
         duration_ms,
     )
     return response
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "https://tsi-studio.vercel.app",
-    ],
-    allow_origin_regex=r"https://.*\.vercel\.app",
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 app.include_router(email_router, prefix="/api/email", tags=["email"])
 app.include_router(reply_router, prefix="/api/reply", tags=["reply"])
@@ -110,6 +110,11 @@ app.add_api_route(
 @app.get("/")
 def home():
     return {"message": "TSI Studio backend is running"}
+
+
+@app.get("/health")
+def health():
+    return {"status": "ok", "cors": "updated"}
 
 
 @app.get("/api/health")
