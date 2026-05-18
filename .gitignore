@@ -1,6 +1,14 @@
-# TSI Studio project specific ignores
+# TSI Studio .gitignore
 
-# Frontend dependencies and build
+# Environment files
+.env
+.env.local
+.env.*.local
+.envrc
+backend/.env
+frontend/.env
+
+# Frontend dependencies and builds
 node_modules/
 frontend/node_modules/
 dist/
@@ -10,31 +18,41 @@ build/
 # Python virtual environments
 venv/
 backend/venv/
+.venv/
+env/
+ENV/
 
-# Environment files
-.env
-.env.local
-.env.*.local
-backend/.env
-frontend/.env
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*$py.class
+
+# Backend generated session storage
+backend/storage/sessions/
 
 # Logs
 *.log
 backend/*.log
 frontend/*.log
 
+# Testing / cache
+.pytest_cache/
+.coverage
+htmlcov/
+.cache/
+
 # Local tools
 .playwright-mcp/
 
-# Editor/system files
+# Editor files
 .vscode/
+.idea/
+
+# System files
 .DS_Store
 Thumbs.db
 
-# Python cache
-__pycache__/
-backend/__pycache__/
-*.pyc
-
-# Session storage
-backend/storage/sessions/
+# Temporary files
+tempCodeRunnerFile.py
