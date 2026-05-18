@@ -20,7 +20,7 @@ def build_user_payload(
     account_context = _infer_account_context(emails, account_data, category)
     sections = [
         "CATEGORY:",
-        get_category_prompt(category),
+        get_category_prompt(category) or "Others - no category template was selected.",
         "",
         "EMAIL THREAD:",
         _format_email_thread(emails),
@@ -35,7 +35,7 @@ def build_user_payload(
         _format_account_data(account_data),
         "",
         "AGENT INSTRUCTIONS:",
-        agent_instructions.strip() or get_category_prompt(category),
+        agent_instructions.strip() or get_category_prompt(category) or "No custom prompt was provided. Use only the raw input and general response rules.",
     ]
 
     if previous_reply.strip():

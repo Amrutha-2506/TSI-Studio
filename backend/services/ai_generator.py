@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 from backend.services.category_prompts import (
     METER_READING_HIGH_USAGE_TEMPLATE,
     STANDARD_CLOSING,
+    TENANT_TRANSFER_TEMPLATE,
     get_category_prompt,
     normalize_category,
 )
@@ -153,7 +154,7 @@ def _fallback_reply(
         )
 
     if category == "Billing Issue":
-        body = _billing_body(details, latest_customer)
+        return _billing_reply(emails, account_data)
     elif category == "Payment Arrangement":
         body = _payment_body(details)
     elif category == "Move / Transfer Service":
@@ -174,9 +175,8 @@ def _fallback_reply(
             customer_name=_customer_name(emails) or "Customer"
         )
     elif category == "Tenant / Responsibility Transfer":
-        body = (
-            "A tenant would need to apply for service in their own name. Once the tenant's service begins, the owner's service can be stopped "
-            "or removed from the owner's name if requested."
+        return TENANT_TRANSFER_TEMPLATE.format(
+            customer_name=_customer_name(emails) or "Customer"
         )
     else:
         preview = _compact(latest_customer.get("body", "your request"), 220)
@@ -199,19 +199,49 @@ def _fallback_intro(category: str) -> str:
     return "Thank you for contacting Georgia Natural Gas."
 
 
-def _billing_body(details: list[str], latest_customer: dict) -> str:
-    if details:
-        return (
-            "We reviewed the billing information available for the account. "
-            + " ".join(details)
-            + " These details explain the total based on the account data currently provided."
-        )
-    preview = _compact(latest_customer.get("body", "your billing question"), 180)
+def _billing_reply(emails: list[dict], account_data: dict) -> str:
+    first_name = _customer_first_name(emails) or "Customer"
+    breakdown = _billing_breakdown_text(account_data)
+    if not breakdown:
+        bill_amount = _find_labeled_value(emails, "Bill Amount")
+        due_date = _find_labeled_value(emails, "Due Date")
+        if bill_amount and due_date:
+            breakdown = (
+                f"Our records show that the bill amount is {bill_amount} and the due date is {due_date}."
+            )
+        elif bill_amount:
+            breakdown = f"Our records show that the bill amount is {bill_amount}."
+        else:
+            breakdown = "Our records show that your billing concern has been reviewed."
+
     return (
-        f"We understand you are asking about the bill or charges mentioned in your latest message: \"{preview}\". "
-        "At this time, no confirmed account balance or charge breakdown was provided to this tool, so we do not want to guess. "
-        "Once the account details are available, we can explain the balance clearly."
+        f"Hi {first_name},\n\n"
+        f"Thank you for responding. {breakdown} Please let us know if you have any additional questions or concerns. We hope you have a great day.\n\n"
+        "Sincerely,\n\n"
+        "Dezmonte Sims\n"
+        "Written Correspondence\n"
+        "Customer Care Team\n"
+        "Georgia Natural Gas"
     )
+
+
+def _billing_breakdown_text(account_data: dict) -> str:
+    previous_balance = account_data.get("previousBalance")
+    bill_date = account_data.get("billDate") or account_data.get("lastBillDate")
+    current_gas_charges = account_data.get("currentGasCharges")
+    budget_true_up = account_data.get("budgetTrueUp")
+
+    if previous_balance and bill_date and current_gas_charges and budget_true_up:
+        return (
+            f"Our records show that a previous balance of {previous_balance} was brought forward onto the last bill dated {bill_date} "
+            f"and was added to the current gas service charges of {current_gas_charges} and a budget plan annual true-up charge of {budget_true_up}. "
+            "The budget plan annual true-up is where any unpaid charges would then be placed on your account, and billed out on the next bill to generate."
+        )
+
+    details = _account_detail_lines(account_data)
+    if details:
+        return "Our records show that " + " ".join(details)
+    return ""
 
 
 def _payment_body(details: list[str]) -> str:
@@ -306,6 +336,11 @@ def _customer_name(emails: list[dict]) -> str:
     return ""
 
 
+def _customer_first_name(emails: list[dict]) -> str:
+    name = _customer_name(emails)
+    return name.split()[0] if name else ""
+
+
 def _format_customer_name(name: str) -> str:
     cleaned = " ".join((name or "").split())
     if not cleaned:
@@ -326,6 +361,13 @@ def _find_account_number(text: str) -> str:
         return match.group(1).strip()
     generic = re.search(r"\b\d{4,}(?:-\d{3,})?\b", text or "")
     return generic.group(0).strip() if generic else ""
+
+
+def _find_labeled_value(emails: list[dict], label: str) -> str:
+    pattern = re.compile(rf"(?is){re.escape(label)}\s*:\s*([^\n\r]+)")
+    full_text = "\n".join(email.get("body", "") for email in emails or [])
+    match = pattern.search(full_text)
+    return " ".join(match.group(1).split()) if match else ""
 
 
 def _has_inquiry_details(emails: list[dict]) -> bool:

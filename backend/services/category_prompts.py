@@ -10,6 +10,7 @@ CATEGORIES = [
     "Tenant / Responsibility Transfer",
     "General Inquiry",
     "Verification Needed",
+    "Others",
 ]
 
 DEFAULT_CATEGORY = "General Inquiry"
@@ -37,6 +38,28 @@ Georgia Natural Gas"""
 METER_READING_HIGH_USAGE_TEMPLATE = """Dear {customer_name},
 
 Thank you for choosing Georgia Natural Gas. I appreciate the opportunity to assist you with your account. We did a meter reading analysis of your meter and the meter readings show within the accepted threshold limits. Please keep in mind that we bill in arrears and are still billing for winter usage. Please let us know if you have any additional questions or concerns. We hope you have a great day.
+
+We value your business and look forward to continuing to meet your natural gas needs. If you have any questions or require additional information, please reply to this email or contact our Customer Care Center at 770.850.6200 (inside metro Atlanta) or 1.877.850.6200 (outside metro Atlanta) Monday through Friday from 7a.m. until 8 p.m. and Saturdays from 8 a.m. until 5 p.m.
+
+Sincerely,
+
+Customer Care Team
+Georgia Natural Gas"""
+
+BILLING_ISSUE_TEMPLATE = """Hi {customer_first_name},
+
+Thank you for responding. Our records show that a previous balance of {previous_balance} was brought forward onto the last bill dated {bill_date} and was added to the current gas service charges of {current_gas_charges} and a budget plan annual true-up charge of {budget_true_up}. The budget plan annual true-up is where any unpaid charges would then be placed on your account, and billed out on the next bill to generate. Please let us know if you have any additional questions or concerns. We hope you have a great day.
+
+Sincerely,
+
+Dezmonte Sims
+Written Correspondence
+Customer Care Team
+Georgia Natural Gas"""
+
+TENANT_TRANSFER_TEMPLATE = """Dear {customer_name},
+
+Thank you for contacting Georgia Natural Gas. We appreciate the opportunity to assist you. Please be advised that your tenant will need to complete an application for service in their name. They can either call us to do so, or they can visit www.gng.com to process an application. Upon completion of their order, it will automatically close your account with us. If you prefer, we can process an order to take service out of your name so you won't be responsible for their usage any longer. Please let us know if you have any additional questions or concerns. We hope you have a great day.
 
 We value your business and look forward to continuing to meet your natural gas needs. If you have any questions or require additional information, please reply to this email or contact our Customer Care Center at 770.850.6200 (inside metro Atlanta) or 1.877.850.6200 (outside metro Atlanta) Monday through Friday from 7a.m. until 8 p.m. and Saturdays from 8 a.m. until 5 p.m.
 
@@ -132,15 +155,33 @@ OUTPUT FORMATTING RULES:
 - Generate only the final customer-ready email response."""
 
 CATEGORY_PROMPTS = {
-    "Billing Issue": """The customer is asking about a bill, balance, or charges.
+    "Billing Issue": f"""The customer is asking about a bill, balance, or charges.
 
-Write a response that:
-- Thanks the customer.
-- Explains the bill clearly.
-- Breaks down charges if charge details are provided.
-- Mentions previous balance, current charges, budget billing, true-up, late fee, or adjustment only if provided.
-- Shows empathy if the customer says they cannot afford the bill.
-- Invites additional questions.""",
+BILLING ISSUE RESPONSE RULES:
+
+- Use the concise Georgia Natural Gas written-correspondence style shown in the approved template below.
+- Start with "Hi {{customer_first_name}}," when the customer's first name is available.
+- Use "Thank you for responding." when the latest customer email provides requested verification or follow-up information.
+- Explain the bill with confident "Our records show..." wording when billing details are provided in backend account data, agent instructions, or the email thread.
+- If previous balance, bill date, current gas service charges, budget plan annual true-up, late fee, adjustment, bill amount, or due date are provided, include those exact values.
+- For budget plan annual true-up, use this wording when applicable: "The budget plan annual true-up is where any unpaid charges would then be placed on your account, and billed out on the next bill to generate."
+- Do not say "we do not have the detailed charge breakdown available" when the agent instructions or account data include billing details.
+- Do not add a long customer care contact paragraph for this category unless the agent specifically requests it.
+- Keep the response short and close to the approved GNG correspondence format.
+- End with this signature unless agent instructions provide a different sender:
+
+Sincerely,
+
+Dezmonte Sims
+Written Correspondence
+Customer Care Team
+Georgia Natural Gas
+
+Approved response structure:
+
+{BILLING_ISSUE_TEMPLATE}
+
+If the required billing breakdown values are not provided, do not invent them. Use the same short format, include only confirmed billing facts, and ask the customer to let us know if they have additional questions.""",
     "Payment Arrangement": """The customer wants a payment arrangement.
 
 Write a response that:
@@ -208,13 +249,33 @@ METER READING / HIGH USAGE RESPONSE RULES:
 Approved default template:
 
 {METER_READING_HIGH_USAGE_TEMPLATE}""",
-    "Tenant / Responsibility Transfer": """The customer is asking whether a tenant can pay or take over service.
+    "Tenant / Responsibility Transfer": f"""The customer is asking whether a tenant can pay, take over service, or be responsible for usage at a rental property.
 
-Write a response that:
-- Explains that the tenant must apply for service in their own name.
-- Explains they can call or apply online if allowed.
-- Explains that once tenant service starts, the owner's account may close.
-- Offers to process a stop-service request if the customer wants service removed from their name.""",
+TENANT / RESPONSIBILITY TRANSFER RESPONSE RULES:
+
+- Use the approved Georgia Natural Gas tenant/responsibility transfer template below as the default response.
+- Start with "Dear {{customer_name}}," when the customer name is available.
+- Thank the customer with this exact opening style: "Thank you for contacting Georgia Natural Gas. We appreciate the opportunity to assist you."
+- Clearly state that the tenant will need to complete an application for service in their own name.
+- State that the tenant can either call Georgia Natural Gas or visit www.gng.com to process an application.
+- State that upon completion of the tenant's order, it will automatically close the customer's account with Georgia Natural Gas.
+- Offer to process an order to take service out of the customer's name so they will not be responsible for the tenant's usage any longer.
+- Include "Please let us know if you have any additional questions or concerns. We hope you have a great day."
+- Include the full standard customer care closing paragraph and phone numbers.
+- End with:
+
+Sincerely,
+
+Customer Care Team
+Georgia Natural Gas
+
+- Do not use bullet points in the customer response.
+- Do not make the reply shorter than the approved template.
+- Keep the response close to the wording and order of the approved template.
+
+Approved response template:
+
+{TENANT_TRANSFER_TEMPLATE}""",
     "General Inquiry": """The customer has a general Georgia Natural Gas service question.
 
 Write a response that:
@@ -232,6 +293,7 @@ Write a response that:
 - Does not ask for details the customer already provided in the thread.
 - Does not discuss balances, charges, service dates, fees, credits, or account changes unless backend data confirms them.
 - Keeps the request formal, professional, and similar to official Georgia Natural Gas email correspondence.""",
+    "Others": "",
 }
 
 CATEGORY_KEYWORDS = {
