@@ -62,8 +62,13 @@ async def log_requests(request: Request, call_next):
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "https://tsi-studio.vercel.app",
+    ],
+    allow_origin_regex=r"https://.*\.vercel\.app",
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -100,6 +105,11 @@ app.add_api_route(
     response_model=ReplyResponse,
     tags=["reply"],
 )
+
+
+@app.get("/")
+def home():
+    return {"message": "TSI Studio backend is running"}
 
 
 @app.get("/api/health")
