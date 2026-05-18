@@ -1,0 +1,40 @@
+# TSI Studio project specific ignores
+
+# Frontend dependencies and build
+node_modules/
+frontend/node_modules/
+dist/
+frontend/dist/
+build/
+
+# Python virtual environments
+venv/
+backend/venv/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+backend/.env
+frontend/.env
+
+# Logs
+*.log
+backend/*.log
+frontend/*.log
+
+# Local tools
+.playwright-mcp/
+
+# Editor/system files
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Python cache
+__pycache__/
+backend/__pycache__/
+*.pyc
+
+# Session storage
+backend/storage/sessions/
